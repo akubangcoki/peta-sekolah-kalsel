@@ -1,0 +1,167 @@
+  /* ===== Peta Leaflet (menggantikan tampilan SVG) =====
+     Batas wilayah resmi BIG + titik satuan pendidikan dimuat dari peta_data.json.
+     Bila Leaflet atau datanya gagal dimuat, tampilan SVG lama tetap dipakai. */
+  const LEAF_DATA_URL = 'https://akubangcoki.github.io/peta-sekolah-kalsel/peta_data.json';
+  const leaf = { state: 'idle', map: null, regions: {}, school: null, data: null, stats: null, selKey: undefined, showSchools: true, observer: null };
+
+  function leafLoadAssets(){
+    const loadCss = href => new Promise(res => { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = href; l.onload = res; l.onerror = res; document.head.appendChild(l); });
+    const loadJs = src => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('gagal memuat ' + src)); document.head.appendChild(s); });
+    const lib = window.L ? Promise.resolve() : Promise.all([
+      loadCss('https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'),
+      loadJs('https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js')
+    ]);
+    const dat = fetch(LEAF_DATA_URL).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+    return Promise.all([lib, dat]).then(x => x[1]);
+  }
+
+  function leafSync(stats){
+    const box = mapSection.querySelector('#berandaLeafMap');
+    if (!box || leaf.state === 'failed') return;
+    leaf.stats = stats;
+    if (leaf.state === 'idle') {
+      leaf.state = 'loading';
+      leafLoadAssets()
+        .then(d => { leaf.data = d; leaf.state = 'ready'; renderBeranda(); })
+        .catch(e => { leaf.state = 'failed'; console.warn('Peta Leaflet tidak dimuat, memakai peta SVG:', e); });
+      return;
+    }
+    if (leaf.state !== 'ready') return;
+    box.style.display = 'block';
+    if (!leaf.observer && window.ResizeObserver) {
+      // peta baru dibuat setelah kontainer terlihat (mis. saat tab Beranda dibuka)
+      leaf.observer = new ResizeObserver(() => {
+        if (!box.offsetWidth) return;
+        if (!leaf.map) leafSync(leaf.stats); else leaf.map.invalidateSize();
+      });
+      leaf.observer.observe(box);
+    }
+    if (!box.offsetWidth) return;
+    if (!leaf.map) leafInit(box);
+    mapSection.querySelector('#berandaSvgMap').style.display = 'none';
+    leafRefresh();
+  }
+
+  function leafTip(name, ev){
+    const tooltipEl = mapSection.querySelector('#berandaMapTooltip');
+    const st = (leaf.stats || {})[name] || {};
+    const pctVal = activeBasis === 'satdik' ? st.pct_satdik : st.pct_murid;
+    const zone = getKalselZone(pctVal || 0);
+    tooltipEl.style.display = 'block';
+    tooltipEl.innerHTML = `
+      <div style="font-weight:700;margin-bottom:3px;border-bottom:1px solid rgba(255,255,255,0.2);padding-bottom:2px;">${esc(name)}</div>
+      <div>Kesiapan Satdik: <b>${fmt(st.ikut_satdik)}/${fmt(st.total_satdik)}</b> (<b>${st.pct_satdik}%</b>)</div>
+      <div>Partisipasi Murid: <b>${fmt(st.peserta_murid)}/${fmt(st.total_murid)}</b> (<b>${st.pct_murid}%</b>)</div>
+      <div style="margin-top:2px;font-size:0.7rem;color:#cbd5e1;">Status: <b style="color:${zone.textColor};">${zone.label}</b></div>`;
+    leafTipMove(ev);
+  }
+  function leafTipMove(ev){
+    const tooltipEl = mapSection.querySelector('#berandaMapTooltip');
+    const wrapRect = mapSection.querySelector('.map-visual-wrap').getBoundingClientRect();
+    tooltipEl.style.left = (ev.clientX - wrapRect.left) + 'px';
+    tooltipEl.style.top = (ev.clientY - wrapRect.top - 12) + 'px';
+  }
+
+  function leafInit(box){
+    const D = leaf.data;
+    const map = L.map(box, { zoomSnap: 0.25, minZoom: 7, zoomControl: true });
+    leaf.map = map;
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18, attribution: '&copy; OpenStreetMap | Batas wilayah: BIG (edisi Juni 2026, disederhanakan)'
+    }).addTo(map);
+
+    // topeng: hanya wilayah provinsi yang terlihat
+    map.createPane('mask').style.zIndex = 250;
+    const rings = D.prov.map(r => r.map(c => [c[1], c[0]]));
+    L.polygon([[[-89,-179],[-89,179],[89,179],[89,-179]], ...rings], { pane: 'mask', className: 'leaf-mask', stroke: false, interactive: false }).addTo(map);
+    const main = rings.filter(r => { const b = L.latLngBounds(r); return b.getNorth() - b.getSouth() > 0.5; });
+    leaf.provBounds = L.latLngBounds((main.length ? main : rings).flat());
+    map.setMaxBounds(leaf.provBounds.pad(0.5));
+
+    KALSEL_REGIONS.forEach(r => {
+      const f = D.kab[String(r.id).replace(/^ID/, '')];
+      if (!f) return;
+      const layer = L.geoJSON({ type: 'Feature', geometry: f.g }, { style: { weight: 1.4, color: '#ffffff', fillOpacity: 0.85 } }).addTo(map);
+      layer.on('mouseover', e => leafTip(r.name, e.originalEvent));
+      layer.on('mousemove', e => leafTipMove(e.originalEvent));
+      layer.on('mouseout', () => { mapSection.querySelector('#berandaMapTooltip').style.display = 'none'; });
+      layer.on('click', () => {
+        selectedKabko = (selectedKabko && selectedKabko.toLowerCase() === r.name.toLowerCase()) ? null : r.name;
+        renderBeranda();
+      });
+      const badge = L.marker(f.lp, { interactive: false, keyboard: false }).addTo(map);
+      leaf.regions[r.name] = { layer, badge, r };
+    });
+    L.polygon(rings, { fill: false, color: '#c9a227', weight: 2.5, interactive: false }).addTo(map);
+
+    leaf.school = L.layerGroup().addTo(map);
+    const info = L.control({ position: 'bottomleft' });
+    info.onAdd = () => {
+      const d = L.DomUtil.create('div', 'leaf-info');
+      d.innerHTML = '<label><input type="checkbox" checked> Titik satuan pendidikan</label>' +
+        '<div><span class="leaf-dot" style="background:#0f766e"></span>Ikut TKA &nbsp; <span class="leaf-dot" style="background:#f59e0b"></span>Belum/tidak ikut</div><div class="leaf-count"></div>';
+      L.DomEvent.disableClickPropagation(d);
+      d.querySelector('input').addEventListener('change', ev => {
+        leaf.showSchools = ev.target.checked;
+        if (leaf.showSchools) map.addLayer(leaf.school); else map.removeLayer(leaf.school);
+      });
+      leaf.infoEl = d;
+      return d;
+    };
+    info.addTo(map);
+    map.on('zoomend', leafBadges);
+    map.fitBounds(leaf.provBounds);
+    setTimeout(() => map.invalidateSize(), 200);
+  }
+
+  function leafBadges(){
+    if (!leaf.map) return;
+    const full = leaf.map.getZoom() >= 10;
+    Object.values(leaf.regions).forEach(o => {
+      const s = leaf.stats[o.r.name] || {};
+      const p = activeBasis === 'satdik' ? s.pct_satdik : s.pct_murid;
+      const zone = getKalselZone(p || 0);
+      const val = activeBasis === 'satdik' ? `${fmt(s.ikut_satdik)}/${fmt(s.total_satdik)} Satdik` : `${fmt(s.peserta_murid)} Murid`;
+      o.badge.setIcon(L.divIcon({
+        className: 'leaf-badge-wrap', iconSize: [0, 0],
+        html: `<div class="leaf-badge"><b>${esc(o.r.label)}</b>${full ? `<span>${esc(val)}</span>` : ''}<em style="color:${zone.textColor}">${p}%</em></div>`
+      }));
+    });
+  }
+
+  function leafRefresh(){
+    const map = leaf.map, st = leaf.stats, D = leaf.data;
+    const key = selectedKabko ? Object.keys(leaf.regions).find(k => k.toLowerCase() === selectedKabko.toLowerCase()) : null;
+    Object.values(leaf.regions).forEach(o => {
+      const s = st[o.r.name] || {};
+      const p = activeBasis === 'satdik' ? s.pct_satdik : s.pct_murid;
+      const zone = getKalselZone(p || 0);
+      const sel = key === o.r.name;
+      o.layer.setStyle({ fillColor: zone.color, fillOpacity: sel ? 1 : 0.82, weight: sel ? 3.2 : 1.4, color: sel ? '#0f172a' : '#ffffff' });
+      if (sel) o.layer.bringToFront();
+    });
+    leafBadges();
+
+    // titik satuan pendidikan (semua, atau hanya wilayah terpilih)
+    leaf.school.clearLayers();
+    let tot = 0, ada = 0;
+    allRows.forEach(r => {
+      if (key && norm(r['Kabupaten/Kota']) !== norm(key)) return;
+      tot++;
+      const npsn = String(r['NPSN'] || '').trim();
+      const pt = D.titik[npsn];
+      if (!pt) return;
+      ada++;
+      const ikut = norm(r['Status TKA']) === 'tka';
+      L.circleMarker(pt, { radius: key ? 6 : 4.5, weight: 1.5, color: '#ffffff', fillColor: ikut ? '#0f766e' : '#f59e0b', fillOpacity: 0.95 })
+        .bindPopup(`<b>${esc(r['Nama Satuan Pendidikan'])}</b><br>NPSN ${esc(npsn)} &bull; ${esc(r['Jenjang'] || '')}<br>Status TKA: <b>${ikut ? 'Ikut TKA' : esc(r['Status TKA'] || 'Belum/tidak ikut')}</b><br><span style="color:#64748b">${esc(r['Kabupaten/Kota'] || '')}</span>`)
+        .addTo(leaf.school);
+    });
+    if (leaf.infoEl) leaf.infoEl.querySelector('.leaf-count').textContent = `${fmt(ada)} dari ${fmt(tot)} satdik punya titik`;
+
+    if (leaf.selKey !== key) {
+      leaf.selKey = key;
+      if (key) map.fitBounds(leaf.regions[key].layer.getBounds().pad(0.12)); else map.fitBounds(leaf.provBounds);
+    }
+  }
+
