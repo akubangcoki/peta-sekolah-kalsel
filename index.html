@@ -42,7 +42,26 @@ input:focus,select:focus,.btn:focus-visible,.item:focus-visible{outline:3px soli
 .stat b{display:block;font-size:1.05rem;color:var(--navy)}
 .stat span{font-size:.68rem;color:var(--muted)}
 .list{flex:1;overflow:auto}
-.item{padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer;display:block;width:100%;text-align:left;background:none;border-left:0;border-right:0;border-top:0;color:inherit;font:inherit}
+.item{padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;align-items:center;gap:10px;width:100%;text-align:left;color:inherit}
+.item .itm{flex:1;min-width:0}
+.btn.lihat{min-height:44px;padding:0 12px;background:var(--navy);color:#fff;border-color:var(--navy);display:inline-flex;align-items:center;gap:6px;text-decoration:none;white-space:nowrap}
+:root[data-theme="dark"] .btn.lihat{color:#0b132b}
+.pop .btn.lihat{min-height:36px;margin-top:6px;font-size:.78rem;color:#fff}
+/* jendela "Lihat" meniru jendela Edit Tempat Pelaksanaan di halaman Penetapan Status TKA */
+.mbg{position:fixed;inset:0;z-index:2000;background:rgba(8,15,35,.55);display:flex;align-items:flex-start;justify-content:center;padding:max(16px,env(safe-area-inset-top,0px)) 16px 16px;overflow:auto}
+.mbg[hidden]{display:none}
+.dlg{background:var(--panel);color:var(--ink);width:min(620px,100%);border-radius:10px;box-shadow:0 18px 60px rgba(0,0,0,.4);margin-top:3vh}
+.dlg header{background:none;color:inherit;border-bottom:1px solid var(--line);padding:12px 16px;display:flex;align-items:center;gap:8px}
+.dlg header h2{font-size:.9rem;font-weight:600;margin:0;flex:1;min-width:0;overflow-wrap:anywhere}
+.dlg .x{border:0;background:none;color:var(--muted);font-size:1.5rem;line-height:1;min-width:44px;min-height:44px;cursor:pointer;border-radius:10px}
+.dlg .x:hover{color:var(--ink);background:var(--chip)}
+.dlg .body{padding:14px 16px 6px}
+.frow{display:grid;grid-template-columns:150px 1fr;gap:10px;align-items:center;margin-bottom:8px}
+.frow label{margin:0;text-align:right;font-size:.8rem;color:var(--ink);font-weight:500}
+#mpeta{height:290px;border-radius:6px;border:1px solid var(--line);margin-top:6px}
+.jarak{font-size:1.05rem;font-weight:700;padding:10px 2px 6px}
+.dlg footer{border-top:1px solid var(--line);padding:10px 16px;display:flex;justify-content:flex-end}
+@media(max-width:560px){.frow{grid-template-columns:1fr;gap:3px}.frow label{text-align:left}}
 .item:hover{background:var(--chip)}
 .item b{font-size:.85rem;display:block}
 .item span{font-size:.72rem;color:var(--muted)}
@@ -112,6 +131,24 @@ input:focus,select:focus,.btn:focus-visible,.item:focus-visible{outline:3px soli
     <svg class="fs" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 3 56 12v20c0 14-10 24-24 29C18 56 8 46 8 32V12z" fill="#0b2a5b" stroke="#c9a227" stroke-width="3"/><text x="32" y="40" text-anchor="middle" font-family="Plus Jakarta Sans,sans-serif" font-weight="700" font-size="22" fill="#fff">FS</text></svg>
   </div>
 </main>
+
+<div class="mbg" id="modal" hidden>
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <header>
+      <h2 id="mTitle">Lihat Lokasi Satuan Pendidikan</h2>
+      <button class="x" id="mClose" aria-label="Tutup">&times;</button>
+    </header>
+    <div class="body">
+      <div class="frow"><label for="mJenjang">Jenjang</label><select id="mJenjang"></select></div>
+      <div class="frow"><label for="mProv">Provinsi</label><select id="mProv"><option>15. KALIMANTAN SELATAN</option></select></div>
+      <div class="frow"><label for="mKab">Kota/Kabupaten</label><select id="mKab"></select></div>
+      <div class="frow"><label for="mSek">Sekolah</label><select id="mSek"></select></div>
+      <div id="mpeta" role="application" aria-label="Peta lokasi dua satuan pendidikan"></div>
+      <div class="jarak" id="mJarak" aria-live="polite">-</div>
+    </div>
+    <footer><button class="btn primary" id="mTutup">Tutup</button></footer>
+  </div>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
@@ -200,7 +237,7 @@ function popup(r){
     ["Akreditasi",r[K.akreditasi]],["Ikut TKA",r[K.ikut]==="Ya"?"Ya, ikut TKA":"Tidak ikut TKA"],["Pelaksanaan TKA",r[K.tka]],
     ["Koordinat",r[K.lat]!=null?`${r[K.lat]}, ${r[K.lng]}`:"-"],["Sumber titik",SRC[r[K.sumber]]],
   ].filter(x=>x[1]);
-  return `<div class="pop"><h3>${esc(r[K.nama])}</h3><table>${rows.map(x=>`<tr><td>${x[0]}</td><td>${esc(x[1])}</td></tr>`).join("")}</table>${gmaps?`<p><a href="${gmaps}" target="_blank" rel="noopener">Buka di Google Maps</a></p>`:""}</div>`;
+  return `<div class="pop"><h3>${esc(r[K.nama])}</h3><table>${rows.map(x=>`<tr><td>${x[0]}</td><td>${esc(x[1])}</td></tr>`).join("")}</table>${gmaps?`<p><a href="${gmaps}" target="_blank" rel="noopener">Buka di Google Maps</a></p>`:""}<button class="btn lihat" data-lihat="${esc(r[K.npsn])}">Lihat</button></div>`;
 }
 
 // ---------- filter ----------
@@ -268,16 +305,19 @@ function more(){
   const list=$("list"); const old=list.querySelector(".more"); if(old) old.remove();
   const next=state.rows.slice(state.shown,state.shown+100);
   list.insertAdjacentHTML("beforeend", next.map((r,i)=>`
-    <button class="item" role="listitem" data-i="${state.shown+i}">
-      <b>${esc(r[K.nama])}</b>
-      <span><span class="tag">${esc(r[K.bentuk])}</span>${r[K.lat]==null?'<span class="tag no">tanpa titik</span>':""}${esc(r[K.kec]||"")}${r[K.kec]?", ":""}${esc(r[K.kab])} &middot; ${esc(r[K.npsn])}</span>
-    </button>`).join(""));
+    <div class="item" role="listitem" tabindex="0" data-i="${state.shown+i}">
+      <div class="itm"><b>${esc(r[K.nama])}</b>
+      <span><span class="tag">${esc(r[K.bentuk])}</span>${r[K.lat]==null?'<span class="tag no">tanpa titik</span>':""}${esc(r[K.kec]||"")}${r[K.kec]?", ":""}${esc(r[K.kab])} &middot; ${esc(r[K.npsn])}</span></div>
+      <button class="btn lihat" data-lihat="${esc(r[K.npsn])}" aria-label="Lihat lokasi ${esc(r[K.nama])}">Lihat</button>
+    </div>`).join(""));
   state.shown+=next.length;
   if(state.shown<state.rows.length)
     list.insertAdjacentHTML("beforeend",`<div class="more"><button class="btn" id="moreBtn">Tampilkan lebih banyak (${(state.rows.length-state.shown).toLocaleString("id")})</button></div>`);
 }
+$("list").addEventListener("keydown",e=>{ if(e.key==="Enter" && e.target.classList.contains("item")) e.target.click(); });
 $("list").addEventListener("click",e=>{
   if(e.target.id==="moreBtn") return more();
+  if(e.target.closest("[data-lihat]")) return;   // tombol Lihat ditangani di bawah
   const it=e.target.closest(".item"); if(!it) return;
   const r=state.rows[+it.dataset.i];
   if(r[K.lat]==null){ L.popup().setLatLng(map.getCenter()).setContent(popup(r)+"<p>Koordinat belum tersedia di data.</p>").openOn(map); return; }
@@ -286,6 +326,85 @@ $("list").addEventListener("click",e=>{
   cluster.zoomToShowLayer(m,()=>m.openPopup());
   if(matchMedia("(max-width:820px)").matches) $("aside").classList.add("collapsed");
 });
+
+// ---------- jendela "Lihat" (meniru Edit Tempat Pelaksanaan di halaman Penetapan Status TKA) ----------
+const BYNPSN = new Map(ROWS.map(r=>[r[K.npsn],r]));
+const JENJANG = [
+  {k:"SD",   n:"SD/MI",          m:["SD","MI","SD/MI","SDTK"]},
+  {k:"SMP",  n:"SMP/MTs",        m:["SMP","MTs","SMP/MTs","SMPTK"]},
+  {k:"SMA",  n:"SMA/MA",         m:["SMA","MA","SMA/MA","SMTK"]},
+  {k:"SMK",  n:"SMK",            m:["SMK"]},
+  {k:"KES",  n:"Kesetaraan",     m:["PKBM","SKB"]},
+  {k:"SLB",  n:"Sekolah Khusus", m:["SLB"]},
+  {k:"PAUD", n:"PAUD (KB/TK/TPA/SPS)", m:["KB","TK","TPA","SPS"]},
+];
+const jenjangOf = r => (JENJANG.find(j=>j.m.includes(r[K.bentuk]))||JENJANG[0]).k;
+// kode kabupaten/kota sama dengan daftar di halaman TKA
+const KABKODE = [["01","Kota Banjarmasin"],["02","Kota Banjarbaru"],["03","Kab. Kotabaru"],["04","Kab. Banjar"],["05","Kab. Barito Kuala"],["06","Kab. Tapin"],
+  ["07","Kab. Hulu Sungai Selatan"],["08","Kab. Hulu Sungai Tengah"],["09","Kab. Hulu Sungai Utara"],["10","Kab. Tabalong"],["11","Kab. Tanah Laut"],["12","Kab. Balangan"],["13","Kab. Tanah Bumbu"]];
+const pin = c => L.divIcon({className:"",iconSize:[26,36],iconAnchor:[13,35],popupAnchor:[0,-32],
+  html:`<svg width="26" height="36" viewBox="0 0 26 36" aria-hidden="true"><path d="M13 1C6.4 1 1 6.2 1 12.7c0 8.6 12 22.3 12 22.3s12-13.7 12-22.3C25 6.2 19.6 1 13 1z" fill="${c}" stroke="#fff" stroke-width="2"/><circle cx="13" cy="12.5" r="4.5" fill="#fff"/></svg>`});
+let mMap=null, mLayer=null, mCur=null, mOpener=null;
+
+function mPopup(r){
+  return `<table style="border-collapse:collapse;font-size:.78rem;min-width:220px"><tr><td style="padding:3px 6px;color:#64748b;width:60px">Nama</td><td style="padding:3px 6px"><b>${esc(r[K.nama])}</b></td></tr>`
+    +`<tr><td style="padding:3px 6px;color:#64748b">Kode</td><td style="padding:3px 6px"><b>${esc(r[K.npsn])}</b></td></tr></table>`;
+}
+function mFillSekolah(sel){
+  const jg=$("mJenjang").value, kab=$("mKab").value;
+  const list=ROWS.filter(x=>x[K.kab]===kab && jenjangOf(x)===jg);
+  $("mSek").innerHTML = `<option value="">Pilih Sekolah</option>` + list.map(x=>`<option value="${esc(x[K.npsn])}">${esc(x[K.npsn])}. ${esc(x[K.nama])}</option>`).join("");
+  $("mSek").value = sel||"";
+}
+function mDraw(){
+  if(!mMap) return;
+  mLayer.clearLayers();
+  const pts=[]; const tgt=BYNPSN.get($("mSek").value);
+  const add=(r,color)=>{ if(r && r[K.lat]!=null){ L.marker([r[K.lat],r[K.lng]],{icon:pin(color)}).bindPopup(mPopup(r)).addTo(mLayer); pts.push(L.latLng(r[K.lat],r[K.lng])); } };
+  add(mCur,"#2a81cb"); add(tgt,"#2aad27");   // biru = satuan pendidikan, hijau = sekolah pilihan
+  if(pts.length) mMap.fitBounds(L.latLngBounds(pts).pad(.4),{maxZoom:17});
+  else mMap.fitBounds(KALSEL);
+  let txt="-";
+  if(pts.length>1){
+    const m=pts[0].distanceTo(pts[1]);
+    txt=((m.toFixed(0)/1000).toFixed(2)).replace(".",",")+" km";
+    if(pts.length===2 && m>5) L.polyline(pts,{color:"#c9a227",weight:3,dashArray:"6 6"}).addTo(mLayer);
+  }
+  const miss=[mCur,tgt].filter(r=>r && r[K.lat]==null).map(r=>r[K.nama]);
+  $("mJarak").textContent = txt + (miss.length?`  (koordinat belum tersedia: ${miss.join(", ")})`:"");
+}
+function openLihat(npsn, opener){
+  const r=BYNPSN.get(npsn); if(!r) return;
+  mCur=r; mOpener=opener||document.activeElement;
+  $("mTitle").textContent=`Lihat Lokasi Satuan Pendidikan [ ${r[K.nama]} ]`;
+  $("mJenjang").innerHTML = JENJANG.map(j=>`<option value="${j.k}">${j.n}</option>`).join("");
+  $("mKab").innerHTML = KABKODE.map(([c,n])=>`<option value="${esc(n)}">${c}. ${esc(n.toUpperCase())}</option>`).join("");
+  $("mJenjang").value=jenjangOf(r); $("mKab").value=r[K.kab];
+  mFillSekolah(npsn);
+  $("modal").hidden=false;
+  if(!mMap){
+    mMap=L.map("mpeta",{minZoom:6}).setView([-2.9,115.3],8);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(mMap);
+    mLayer=L.layerGroup().addTo(mMap);
+  }
+  setTimeout(()=>{ mMap.invalidateSize(); mDraw(); },60);   // peta dihitung ulang setelah jendela tampil
+  $("mClose").focus();
+}
+function closeLihat(){ $("modal").hidden=true; if(mOpener && mOpener.focus) try{mOpener.focus()}catch(e){} }
+document.addEventListener("click",e=>{
+  const b=e.target.closest("[data-lihat]"); if(b){ e.stopPropagation(); openLihat(b.dataset.lihat,b); }
+  else if(e.target===$("modal")) closeLihat();
+});
+// popup Leaflet menghentikan perambatan klik, jadi tombol Lihat di dalamnya dipasang langsung
+map.on("popupopen",e=>{
+  const b=e.popup.getElement()?.querySelector("[data-lihat]");
+  if(b) b.addEventListener("click",()=>openLihat(b.dataset.lihat,b));
+});
+$("mClose").addEventListener("click",closeLihat); $("mTutup").addEventListener("click",closeLihat);
+document.addEventListener("keydown",e=>{ if(e.key==="Escape" && !$("modal").hidden) closeLihat(); });
+$("mJenjang").addEventListener("change",()=>{ mFillSekolah(""); mDraw(); });
+$("mKab").addEventListener("change",()=>{ mFillSekolah(""); mDraw(); });
+$("mSek").addEventListener("change",mDraw);
 
 // ---------- kontrol ----------
 let t; $("q").addEventListener("input",()=>{clearTimeout(t); t=setTimeout(apply,250);});
